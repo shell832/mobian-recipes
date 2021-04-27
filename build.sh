@@ -59,6 +59,11 @@ case "$device" in
     arch="arm64"
     family="librem5"
     ;;
+  "oneplus6"|"oneplus6t" )
+    arch="arm64"
+    family="sdm845"
+    ARGS="$ARGS -t nonfree:true -t imagesize:5GB"
+    ;;
   "surfacepro3" )
     arch="amd64"
     family="amd64"
