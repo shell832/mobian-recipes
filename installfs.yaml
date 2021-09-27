@@ -2,28 +2,28 @@
 {{- $username := or .username "mobian" -}}
 {{- $password := or .password "1234" -}}
 {{- $hostname := or .hostname "mobian" -}}
-{{- $suite := or .suite "bullseye" -}}
+{{- $debian_suite := or .debian_suite "bookworm" -}}
+{{- $suite := or .suite $debian_suite -}}
 
 architecture: {{ $architecture }}
 
 actions:
   - action: debootstrap
-    suite: {{ $suite }}
+    suite: {{ $debian_suite }}
     components:
       - main
     mirror: http://deb.debian.org/debian
     variant: minbase
 
-  - action: apt
-    recommends: false
-    description: Install extrepo
-    packages:
-      - extrepo
+  - action: overlay
+    description: Enable Mobian repository
+    source: overlays/apt/
+    destination: /etc/apt/
 
   - action: run
     description: Setup Mobian repository
     chroot: true
-    script: scripts/setup-repo.sh
+    script: scripts/setup-apt.sh {{ $debian_suite }} {{ $suite }} false false
 
   - action: apt
     recommends: false

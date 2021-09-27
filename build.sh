@@ -2,7 +2,9 @@
 
 export PATH=/sbin:/usr/sbin:$PATH
 DEBOS_CMD=debos
-ARGS=
+if [ -z ${ARGS+x} ]; then
+    ARGS=""
+fi
 
 device="pinephone"
 image="image"
@@ -16,14 +18,18 @@ do_compress=
 image_only=
 imagesize="3.8GB"
 installer=
+zram=
 memory=
 password=
 use_docker=
 username=
 no_blockmap=
 ssh=
-suite="bullseye"
+debian_suite="bookworm"
+suite="bookworm"
+contrib=
 sign=
+miniramfs=
 
 while getopts "dDizobsc:e:f:g:h:m:p:t:u:F:S:" opt
 do
@@ -31,6 +37,7 @@ do
     d ) use_docker=1 ;;
     D ) debug=1 ;;
     e ) environment="$OPTARG" ;;
+    H ) hostname="$OPTARG" ;;
     i ) image_only=1 ;;
     z ) do_compress=1 ;;
     b ) no_blockmap=1 ;;
@@ -45,7 +52,10 @@ do
     t ) device="$OPTARG" ;;
     u ) username="$OPTARG" ;;
     F ) filesystem="$OPTARG" ;;
+    x ) debian_suite="$OPTARG" ;;
     S ) suite="$OPTARG" ;;
+    C ) contrib=1 ;;
+    r ) miniramfs=1 ;;
   esac
 done
 
@@ -56,6 +66,17 @@ case "$device" in
     ;;
   "librem5" )
     family="librem5"
+    ;;
+  "oneplus6"|"pocof1" )
+    arch="arm64"
+    family="sdm845"
+    suite="unstable"
+    ARGS="$ARGS -t nonfree:true -t imagesize:5GB"
+    ;;
+  "a5ulte" )
+    arch="arm64"
+    family="msm8916"
+    ARGS="$ARGS -t nonfree:true -t imagesize:5GB"
     ;;
   "surfacepro3" )
     arch="amd64"
@@ -135,9 +156,9 @@ fi
 ARGS="$ARGS -t architecture:$arch -t family:$family -t device:$device -t nonfree:$nonfree \
             -t partitiontable:$partitiontable -t filesystem:$filesystem -t imagesize:$imagesize\
             -t environment:$environment -t image:$image_file \
-            -t suite:$suite --scratchsize=8G"
+            -t debian_suite:$debian_suite -t suite:$suite --scratchsize=8G"
 
-if [ ! "$image_only" -o ! -f "rootfs-$arch-$environment.tar.gz" ]; then
+if [ ! "$image_only" -o ! -f "$rootfs_file" ]; then
   $DEBOS_CMD $ARGS rootfs.yaml || exit 1
   if [ "$installer" ]; then
     $DEBOS_CMD $ARGS installfs.yaml || exit 1
@@ -155,21 +176,30 @@ fi
 
 $DEBOS_CMD $ARGS "$image.yaml"
 
-if [ ! "$no_blockmap" ]; then
-  bmaptool create "$image_file" > "$image_file.bmap"
+if [ ! "$no_blockmap" -a -f "$image_file.img" ]; then
+  bmaptool create "$image_file.img" > "$image_file.img.bmap"
 fi
 
 if [ "$do_compress" ]; then
-  echo "Compressing $image_file..."
-  gzip --keep --force $image_file
+  echo "Compressing ${image_file}..."
+  [ -f ${image_file}.img ] && gzip --keep --force ${image_file}.img
+  [ -f ${image_file}.root.img ] && tar czf ${image_file}.tar.gz ${image_file}.boot-*.img ${image_file}.root.img
 fi
 
 if [ -n "$sign" ]; then
+    truncate -s0 ${image_file}.sha256sums
     if [ "$do_compress" ]; then
-        sha256sum ${image_file}.gz > ${image_file}.sha256sums
+        extensions="img.gz tar.gz img.bmap"
     else
-        sha256sum ${image_file} > ${image_file}.sha256sums
+        extensions="img boot-*.img root.img img.bmap"
     fi
-    sha256sum ${image_file}.bmap >> ${image_file}.sha256sums
+
+    for ext in ${extensions}; do
+        for file in $(ls ${image_file}.${ext} 2>/dev/null); do
+            sha256sum ${file} >> ${image_file}.sha256sums
+        done
+    done
+
+    [ -f ${image_file}.sha256sums.asc ] && rm ${image_file}.sha256sums.asc
     gpg -u ${sign} --clearsign ${image_file}.sha256sums
 fi

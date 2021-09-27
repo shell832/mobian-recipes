@@ -13,12 +13,13 @@ To build the image, you need to have `debos` and `bmaptool`. On a debian-based
 system, install these dependencies by typing the following command in a terminal:
 
 ```
-sudo apt install debos bmap-tools
+sudo apt install debos bmap-tools f2fs-tools
 ```
 
 Do note that the debos provided in Debian 10 (Buster) is not new enough
 (it will error out with "Unknown action: recipe"), the one in Debian
-Bullseye/testing works.
+Bullseye works.
+If you want to build with EXT4 filesystem f2fs-tools is not required.
 
 The build system will cache and re-use it's output files. To create a fresh build
 remove `*.tar.gz`, `*.sqfs` and `*.img` before starting the build.

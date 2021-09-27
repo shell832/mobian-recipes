@@ -1,5 +1,6 @@
 {{- $architecture := or .architecture "arm64" -}}
 {{- $family := or .family "sunxi" }}
+{{- $nonfree := or .nonfree "false" -}}
 {{- $device := or .device "pinephone" }}
 {{- $environment := or .environment "phosh" -}}
 
@@ -7,7 +8,11 @@ architecture: {{ $architecture }}
 
 actions:
   - action: unpack
+{{ if eq $nonfree "true" }}
+    file: rootfs-{{ $architecture }}-{{ $environment }}-nonfree.tar.gz
+{{ else }}
     file: rootfs-{{ $architecture }}-{{ $environment }}.tar.gz
+{{ end }}
 
   - action: recipe
     recipe: devices/{{ $family }}/packages-{{ $environment }}.yaml

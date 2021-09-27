@@ -1,5 +1,5 @@
 {{- $architecture := or .architecture "arm64" -}}
-{{- $device := or .device "pinephone" }}
+{{- $device := or .device "oneplus6" }}
 
 architecture: {{ $architecture }}
 
@@ -9,9 +9,8 @@ actions:
     description: Install device-specific packages
     packages:
       - {{ $device }}-support
-{{ if eq $device "pinephone" }}
-      - mobian-phosh-phone
       - firefox-esr-mobile-config
-{{ end }}
-      - megapixels
-      - powersupply
+      - libqmi-utils
+      - mkbootimg
+      - mobian-phosh-phone
+      - openssh-server

@@ -1,5 +1,5 @@
 {{- $architecture := or .architecture "arm64" -}}
-{{- $device := or .device "pinephone" }}
+{{- $device := or .device "a5ulte" }}
 
 architecture: {{ $architecture }}
 
@@ -9,9 +9,7 @@ actions:
     description: Install device-specific packages
     packages:
       - {{ $device }}-support
-{{ if eq $device "pinephone" }}
+      - mkbootimg
       - mobian-phosh-phone
       - firefox-esr-mobile-config
-{{ end }}
-      - megapixels
-      - powersupply
+      - openssh-server

@@ -4,14 +4,21 @@
 {{- $partitiontable := or .partitiontable "mbr" }}
 {{- $filesystem := or .filesystem "f2fs" }}
 {{- $environment := or .environment "phosh" -}}
-{{- $image := or .image "mobian-$device-$environment.img" -}}
+{{- $image := or .image "mobian-$device-$environment" -}}
 {{- $imagesize := or .imagesize "3.8GB" }}
+{{- $miniramfs := or .miniramfs "false" }}
+{{- $zram := or .zram "false" -}}
 
 architecture: {{ $architecture }}
 
 actions:
   - action: unpack
     file: rootfs-{{ $device }}-{{ $environment }}.tar.gz
+
+  - action: run
+    description: Lighten initramfs
+    chroot: true
+    command: apt-get -y remove osk-sdl cryptsetup && apt-get -y autoremove
 
   - action: recipe
     recipe: include/partition-{{ $partitiontable }}.yaml
@@ -23,17 +30,36 @@ actions:
   - action: filesystem-deploy
     description: Deploy filesystem onto image
 
+{{ if eq $zram "true" }}
+  - action: run
+    description: setup zram (fstab)
+    chroot: true
+    script: scripts/setup-zram-mounts.sh
+{{ end }}
+
+{{ if eq $miniramfs "true" }}
+  - action: overlay
+    source: overlays/miniramfs
+    destination: usr/share/miniramfs
+
+  - action: run
+    description: Create miniramfs
+    chroot: true
+    script: scripts/create-miniramfs.sh
+
+  - action: run
+    description: Export miniramfs
+    chroot: false
+    command: cp ${ROOTDIR}/boot/miniramfs ${ARTIFACTDIR}/{{ $image }}.miniramfs
+{{ end }}
+
   - action: run
     description: Prepare bootloader
     chroot: true
-    script: devices/{{ $family }}/bootloader.sh {{ $device }}
+    script: devices/{{ $family }}/bootloader.sh {{ $device }} {{ $miniramfs }}
 
   - action: recipe
     recipe: devices/{{ $family }}/bootloader.yaml
     variables:
       device: {{ $device }}
-
-  - action: run
-    description: Cleanup final image
-    chroot: true
-    script: scripts/final-cleanup.sh
+      image: {{ $image }}

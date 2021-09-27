@@ -3,33 +3,38 @@
 {{- $password := or .password "1234" -}}
 {{- $hostname := or .hostname "mobian" -}}
 {{- $environment := or .environment "phosh" -}}
+{{- $contrib := or .contrib "false" -}}
 {{- $nonfree := or .nonfree "false" -}}
 {{- $ssh := or .ssh "" -}}
-{{- $suite := or .suite "bullseye" -}}
+{{- $zram:= or .zram "false" -}}
+{{- $debian_suite := or .debian_suite "bookworm" -}}
+{{- $suite := or .suite $debian_suite -}}
 
 architecture: {{ $architecture }}
 
 actions:
   - action: debootstrap
-    suite: {{ $suite }}
+    suite: {{ $debian_suite }}
     components:
       - main
+{{ if eq $contrib "true" }}
+      - contrib
+{{ end }}
 {{ if eq $nonfree "true" }}
       - non-free
 {{ end }}
     mirror: http://deb.debian.org/debian
     variant: minbase
 
-  - action: apt
-    recommends: false
-    description: Install extrepo
-    packages:
-      - extrepo
+  - action: overlay
+    description: Enable Mobian repository
+    source: overlays/apt/
+    destination: /etc/apt/
 
   - action: run
     description: Setup Mobian repository
     chroot: true
-    script: scripts/setup-repo.sh
+    script: scripts/setup-apt.sh {{ $debian_suite }} {{ $suite }} {{ $contrib }} {{ $nonfree }}
 
   - action: recipe
     recipe: include/packages-{{ $environment }}.yaml
@@ -58,10 +63,21 @@ actions:
     command: chown -R {{ $username }}:{{ $username }} /home/{{ $username }}/.ssh/
 {{ end }}
 
+{{ if eq $zram "true" }}
+  - action: overlay
+    description: setup zram devices
+    source: overlays/zram/
+    destination: /etc/
+{{ end }}
+
   - action: run
     description: Set up system
     chroot: true
     script: scripts/setup-system.sh {{ $hostname }}
 
   - action: pack
+{{ if eq $nonfree "true" }}
+    file: rootfs-{{ $architecture }}-{{ $environment }}-nonfree.tar.gz
+{{ else }}
     file: rootfs-{{ $architecture }}-{{ $environment }}.tar.gz
+{{ end }}
