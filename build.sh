@@ -11,11 +11,12 @@ image="image"
 partitiontable="mbr"
 filesystem="f2fs"
 environment="phosh"
-hostname=
-arch=
+nonfree="false"
+arch="arm64"
+family="sunxi"
 do_compress=
-family=
 image_only=
+imagesize="3.8GB"
 installer=
 zram=
 memory=
@@ -30,7 +31,7 @@ contrib=
 sign=
 miniramfs=
 
-while getopts "dDizobsZCrx:S:e:H:f:g:h:m:p:t:u:F:" opt
+while getopts "dDizobsc:e:f:g:h:m:p:t:u:F:S:" opt
 do
   case "$opt" in
     d ) use_docker=1 ;;
@@ -42,7 +43,7 @@ do
     b ) no_blockmap=1 ;;
     s ) ssh=1 ;;
     o ) installer=1 ;;
-    Z ) zram=1 ;;
+    c ) cpus="$OPTARG" ;;
     f ) ftp_proxy="$OPTARG" ;;
     h ) http_proxy="$OPTARG" ;;
     g ) sign="$OPTARG" ;;
@@ -60,15 +61,10 @@ done
 
 case "$device" in
   "pinephone" )
-    arch="arm64"
-    family="sunxi"
     ;;
   "pinetab" )
-    arch="arm64"
-    family="sunxi"
     ;;
   "librem5" )
-    arch="arm64"
     family="librem5"
     ;;
   "oneplus6"|"pocof1" )
@@ -86,20 +82,21 @@ case "$device" in
     arch="amd64"
     family="amd64"
     partitiontable="gpt"
-    ARGS="$ARGS -t nonfree:true -t imagesize:5GB"
+    nonfree="true"
+    imagesize="5GB"
     ;;
   "amd64" )
     arch="amd64"
     family="amd64"
     device="efi"
     partitiontable="gpt"
-    ARGS="$ARGS -t imagesize:20GB"
+    imagesize="20GB"
     ;;
   "amd64-legacy" )
     arch="amd64"
     family="amd64"
     device="pc"
-    ARGS="$ARGS -t imagesize:20GB"
+    imagesize="20GB"
     ;;
   * )
     echo "Unsupported device '$device'"
@@ -107,39 +104,57 @@ case "$device" in
     ;;
 esac
 
-image_file="mobian-$device-$environment-`date +%Y%m%d`"
 if [ "$installer" ]; then
   image="installer"
-  image_file="mobian-installer-$device-$environment-`date +%Y%m%d`"
-fi
-
-rootfs_file="rootfs-$arch-$environment.tar.gz"
-if echo $ARGS | grep -q "nonfree:true"; then
-  rootfs_file="rootfs-$arch-$environment-nonfree.tar.gz"
+  image_file="mobian-installer-$device-$environment-`date +%Y%m%d`.img"
+else
+  image_file="mobian-$device-$environment-`date +%Y%m%d`.img"
 fi
 
 if [ "$use_docker" ]; then
   DEBOS_CMD=docker
   ARGS="run --rm --interactive --tty --device /dev/kvm --workdir /recipes \
             --mount type=bind,source=$(pwd),destination=/recipes \
-            --security-opt label=disable godebos/debos $ARGS"
+            --security-opt label=disable godebos/debos"
+fi
+if [ "$debug" ]; then
+  ARGS="$ARGS --debug-shell"
 fi
 
-[ "$debug" ] && ARGS="$ARGS --debug-shell"
-[ "$username" ] && ARGS="$ARGS -t username:$username"
-[ "$password" ] && ARGS="$ARGS -t password:$password"
-[ "$ssh" ] && ARGS="$ARGS -t ssh:$ssh"
-[ "$environment" ] && ARGS="$ARGS -t environment:$environment"
-[ "$hostname" ] && ARGS="$ARGS -t hostname:$hostname"
-[ "$http_proxy" ] && ARGS="$ARGS -e http_proxy:$http_proxy"
-[ "$ftp_proxy" ] && ARGS="$ARGS -e ftp_proxy:$ftp_proxy"
-[ "$memory" ] && ARGS="$ARGS --memory $memory"
-[ "$miniramfs" ] && ARGS="$ARGS -t miniramfs:true"
-[ "$contrib" ] && ARGS="$ARGS -t contrib:true"
-[ "$zram" ] && ARGS="$ARGS -t zram:true"
+if [ "$username" ]; then
+  ARGS="$ARGS -t username:$username"
+fi
 
-ARGS="$ARGS -t architecture:$arch -t family:$family -t device:$device \
-            -t partitiontable:$partitiontable -t filesystem:$filesystem \
+if [ "$password" ]; then
+  ARGS="$ARGS -t password:$password"
+fi
+
+if [ "$ssh" ]; then
+  ARGS="$ARGS -t ssh:$ssh"
+fi
+
+if [ "$environment" ]; then
+  ARGS="$ARGS -t environment:$environment"
+fi
+
+if [ "$http_proxy" ]; then
+  ARGS="$ARGS -e http_proxy:$http_proxy"
+fi
+
+if [ "$ftp_proxy" ]; then
+  ARGS="$ARGS -e ftp_proxy:$ftp_proxy"
+fi
+
+if [ "$memory" ]; then
+  ARGS="$ARGS --memory=$memory"
+fi
+
+if [ "$cpus" ]; then
+  ARGS="$ARGS --cpus=$cpus"
+fi
+
+ARGS="$ARGS -t architecture:$arch -t family:$family -t device:$device -t nonfree:$nonfree \
+            -t partitiontable:$partitiontable -t filesystem:$filesystem -t imagesize:$imagesize\
             -t environment:$environment -t image:$image_file \
             -t debian_suite:$debian_suite -t suite:$suite --scratchsize=8G"
 
